@@ -94,11 +94,11 @@ const loginUser = async (req, res, next) => {
 
 // Get User
 // Get:api/user/:id
-// Unprotected
+// protected
 const getUser = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const user = await UserModel.findById(id);
+    const user = await UserModel.findById(id).select("-password");
     if (!user) {
       return next(new HttpError("User not found", 422));
     }
