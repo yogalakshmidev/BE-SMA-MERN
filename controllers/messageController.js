@@ -1,6 +1,7 @@
 const HttpError = require('../models/errorModel')
 const ConversationModel = require('../models/conversationModel')
-const MessageModel = require('../models/messageModel')
+const MessageModel = require('../models/messageModel');
+const { getReceiverSocketId ,io} = require('../socket/socket');
 
 // create message
 // post:api/messages/:receiverId
@@ -27,7 +28,14 @@ const createMessage = async(req, res,next)=>{
     const newMessage = await MessageModel.create({conversationId: conversation._id,senderId:req.user.id, text:messageBody})   
     
     await conversation.updateOne({lastMessage:{text:messageBody, senderId:req.user.id}})
-    res.json({message:"New Message",newMessage})
+
+    const receiverSocketId = getReceiverSocketId(receiverId)
+
+    if(receiverSocketId){
+      io.to(receiverSocketId).emit("newMessage",newMessage);
+    }
+
+    res.json({message:"New Message sent",newMessage})
   } catch (error) {
     return next(new HttpError(error))
   }

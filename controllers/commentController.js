@@ -16,14 +16,13 @@ const createComment = async (req,res,next) => {
       return next(new HttpError("Please write a comment",422))  
     }
     // get the comment creator from the db
-    const commentCreator = await UserModel.findById(req.user.id)
-    
+    const commentCreator = await UserModel.findById(req.user.id)   
 
     const newComment = await CommentModel.create({creator: {creatorId: req.user.id,creatorName: commentCreator?.fullName,creatorPhoto: commentCreator?.profilePhoto},comment,postId})
 
     await PostModel.findByIdAndUpdate(postId,{$push:{comments: newComment?._id}},{new:true})
 
-    res.json({message:"create new comments",newComment})
+    res.json({message:"New comments added",newComment})
   } catch (error) {
     return next(new HttpError(error))
   }
@@ -56,16 +55,18 @@ const deleteComment = async (req,res,next) => {
     const {commentId}= req.params;
     // get the comment from db
     const comment = await CommentModel.findById(commentId)
+  
     const commentCreator = await UserModel.findById(comment?.creator?.creatorId)
     // check if the creator is the one performing the deletion
   if(commentCreator?._id != req.user.id){
     return next(new HttpError("Unauthorized actions.",403))
   }
   //  remove comment id from post comment array
-  await PostModel.findByIdAndUpdate(comment?.postId,{$pull:{$comments:commentId}})
-  const deleteComment = await CommentModel.findByIdAndDelete(commentId)
+  
+  await PostModel.findByIdAndUpdate(comment?.postId,{$pull:{comments: commentId}})
+  const deletedComment = await CommentModel.findByIdAndDelete(commentId)
 
-  res.json({message:"Comment Deleted Successfully",deleteComment})
+  res.json({message:"Comment Deleted Successfully",deletedComment})
   } catch (error) {
     return next(new HttpError(error))
   }

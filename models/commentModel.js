@@ -10,6 +10,6 @@ const commentSchema = new Schema({
   postId : {type:Schema.Types.ObjectId,ref:"Post"},
   comment:{type:String,required:true}
 
-})
+},{timestamps: true})
 
 module.exports =model("Comment",commentSchema)

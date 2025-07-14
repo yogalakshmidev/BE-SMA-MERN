@@ -33,8 +33,9 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 router.post("/users/register", registerUser);
 router.post("/users/login", loginUser);
-// Post Routes for get userbookmark post
 router.get("/users/bookmarks",authMiddleware, getUserBookmarks);
+
+// Post Routes for get userbookmark post
 
 router.get("/users/:id", authMiddleware, getUser);
 router.get("/users", authMiddleware, getUsers);

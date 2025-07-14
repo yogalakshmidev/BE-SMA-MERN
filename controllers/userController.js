@@ -209,27 +209,28 @@ const changeUserAvatar = async (req, res, next) => {
     }
     const {avatar} = req.files;
     // check file size
-    if(avatar.size > 500000){
-      return next(new HttpError("Profile picture size is too big. It should be less than 500kb"));
-    }
+    // if(avatar.size > 500000){
+    //   return next(new HttpError("Profile picture size is too big. It should be less than 500kb"));
+    // }
 
-    let fileName;
-    fileName = avatar.name;
+    let fileName = avatar.name;
     let splittedFilename = fileName.split('.')
     let newFilename = splittedFilename[0] + uuid()+"."+splittedFilename[splittedFilename.length -1]
-    avatar.mv(path.join(__dirname,'..',"uploads",newFilename),async(err)=>{
-      if(err){
+
+    avatar.mv(path.join(__dirname,'..',"uploads",newFilename),
+    async (err) => {
+      if(err) {
         return next(new HttpError(err));
       }
       // store image in cloudinary
-      const result = await cloudinary.uploader.upload(path.join(__dirname,"..","uploads",newFilename),{resource_type:"image"})
+      const result = await cloudinary.uploader.upload(path.join(__dirname,"..","uploads",newFilename),{resource_type: "image"})
 
-      if(!result.secure_url){
+      if(!result.secure_url) {
         return next(new HttpError("Could not upload image to cloudinary",422));
       }
-      const updatedUser = await UserModel.findByIdAndUpdate(req.user.id,{profilePhoto:result?.secure_url},{new:true})
+      const updatedUser = await UserModel.findByIdAndUpdate(req.user.id, {profilePhoto: result?.secure_url},{new: true})
       
-      res.json({message:"profile photo updated successfully",updatedUser}).status(200)
+      res.json(updatedUser).status(200)
     })
     res.json(newFilename);
     console.log("profile photo updated");

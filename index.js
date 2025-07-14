@@ -5,9 +5,9 @@ const cors = require("cors");
 const upload = require("express-fileupload");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const routes = require('./routes/routes')
+const {server,app}= require('./socket/socket')
 
-
-const app = express();
+// const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ extended: true }));
@@ -26,7 +26,7 @@ app.use(errorHandler);
 // Database connection
 connect(process.env.MONGO_URL)
   .then(
-    app.listen(process.env.PORT, () =>
+    server.listen(process.env.PORT, () =>
       console.log(`Server connected on the port ${process.env.PORT}`)
     )
   )
