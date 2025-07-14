@@ -13,7 +13,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ extended: true }));
 
 // Need to give the url for the frontend like localhost or netlify 
-app.use(cors({ credentials: true, origin: ["https://scintillating-nougat-ab5053.netlify.app"] }));
+
+app.use(cors({ credentials: true, origin: ["https://comforting-beijinho-3432a0.netlify.app"] }));
 
 // app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
 app.use(upload());
