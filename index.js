@@ -16,9 +16,9 @@ app.use(express.json({ extended: true }));
 
 // Need to give the url for the frontend like localhost or netlify
 
-// app.use(cors({ credentials: true, origin: ["https://comforting-beijinho-3432a0.netlify.app"] }));
+app.use(cors({ credentials: true, origin: ["https://funny-belekoy-0c1b61.netlify.app"] }));
 // app.use(cors())
-app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
+// app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
 app.use(upload());
 app.use('/uploads', express.static('uploads')); 
 app.use("/api", routes);
