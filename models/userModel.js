@@ -12,6 +12,9 @@ const userSchema = new Schema({
   following:[{type:Schema.Types.ObjectId, ref:"User"}],
   bookmarks:[{type:Schema.Types.ObjectId, ref:"Post"}],
   posts:[{type:Schema.Types.ObjectId, ref:"Post"}],
+  resetPasswordToken: String,
+resetPasswordExpire: Date,
+
 },{timestamps: true})
 
 module.exports = model("User",userSchema)

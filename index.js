@@ -4,24 +4,30 @@ require("dotenv").config();
 const cors = require("cors");
 const upload = require("express-fileupload");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
-const routes = require('./routes/routes')
-const {server,app}= require('./socket/socket')
+const routes = require("./routes/routes");
+const { server, app } = require("./socket/socket");
+const fileUpload = require("express-fileupload");
+
 
 // const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ extended: true }));
 
-// Need to give the url for the frontend like localhost or netlify 
+// Need to give the url for the frontend like localhost or netlify
 
-app.use(cors({ credentials: true, origin: ["https://comforting-beijinho-3432a0.netlify.app"] }));
-
-// app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
+// app.use(cors({ credentials: true, origin: ["https://comforting-beijinho-3432a0.netlify.app"] }));
+// app.use(cors())
+app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
 app.use(upload());
+app.use('/uploads', express.static('uploads')); 
+app.use("/api", routes);
+app.use(fileUpload({
+  useTempFiles: true, // optional but recommended
+  tempFileDir: "/tmp/"
+}));
 
-app.use('/api',routes);
-
-app.use(notFound);
+app.use(notFound); 
 app.use(errorHandler);
 
 // Database connection

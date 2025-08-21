@@ -3,10 +3,13 @@ const HttpError = require("../models/errorModel");
 const userModel = require("../models/userModel");
 const UserModel = require("../models/userModel");
 const bcrypt = require("bcrypt");
-const uuid = require('uuid').v4;
-const fs = require('fs')
-const path = require('path')
-const cloudinary = require('../utils/cloudinary')
+const uuid = require("uuid").v4;
+const fs = require("fs");
+const path = require("path");
+const cloudinary = require("../utils/cloudinary");
+const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
+const mongoose = require('mongoose');
 
 
 // Register User
@@ -85,10 +88,80 @@ const loginUser = async (req, res, next) => {
     });
 
     res
-      .json({ token, id: user?._id, profilePhoto:user?.profilePhoto, message: "Login Successfully" })
+      .json({
+        token,
+        id: user?._id,
+        profilePhoto: user?.profilePhoto,
+        message: "Login Successfully",
+      })
       .status(200);
   } catch (error) {
     return next(new HttpError(error));
+  }
+};
+
+// Forgot Password
+const forgotPassword = async (req, res, next) => {
+  try {
+    const user = await UserModel.findOne({ email: req.body.email });
+    if (!user) return next(new HttpError("No user with that email", 404));
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.resetPasswordToken = resetTokenHash;
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    // Send email
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const message = `
+      <h1>Password Reset Request</h1>
+      <p>Click below link to reset your password (valid for 10 minutes):</p>
+      <a href="${resetUrl}" target="_blank">${resetUrl}</a>
+    `;
+
+    await sendEmail({
+      email: user.email,
+      subject: "Password Reset",
+      message,
+    });
+
+    res.json({ message: "Password reset link sent to your email" });
+  } catch (error) {
+    return next(new HttpError(error.message, 500));
+  }
+};
+
+// Reset Password
+const resetPassword = async (req, res, next) => {
+  try {
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
+    const user = await UserModel.findOne({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) return next(new HttpError("Invalid or expired token", 400));
+
+    // user.password = req.body.password;
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(req.body.password, salt);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    return next(new HttpError(error.message, 500));
   }
 };
 
@@ -200,42 +273,63 @@ const followUnfollowUser = async (req, res, next) => {
 };
 
 // Change  User profile photo
-// post:api/users/avatar
+// post: api/users/avatar
 // protected
 const changeUserAvatar = async (req, res, next) => {
   try {
-    if(!req.files.avatar){
-      return next(new HttpError("Please choose an image",422));
+    if (!req.files || !req.files.avatar) {
+      return next(new HttpError("Please choose an image", 422));
     }
-    const {avatar} = req.files;
-    // check file size
-    // if(avatar.size > 500000){
-    //   return next(new HttpError("Profile picture size is too big. It should be less than 500kb"));
-    // }
 
+    const { avatar } = req.files;
+
+    // Generate unique filename
     let fileName = avatar.name;
-    let splittedFilename = fileName.split('.')
-    let newFilename = splittedFilename[0] + uuid()+"."+splittedFilename[splittedFilename.length -1]
+    let splittedFilename = fileName.split(".");
+    let newFilename =
+      splittedFilename[0] +
+      uuid() +
+      "." +
+      splittedFilename[splittedFilename.length - 1];
 
-    avatar.mv(path.join(__dirname,'..',"uploads",newFilename),
-    async (err) => {
-      if(err) {
-        return next(new HttpError(err));
-      }
-      // store image in cloudinary
-      const result = await cloudinary.uploader.upload(path.join(__dirname,"..","uploads",newFilename),{resource_type: "image"})
+    const filePath = path.join(__dirname, "..", "uploads", newFilename);
 
-      if(!result.secure_url) {
-        return next(new HttpError("Could not upload image to cloudinary",422));
+    // Move file to uploads folder
+    avatar.mv(filePath, async (err) => {
+      if (err) {
+        return next(new HttpError("File upload failed", 500));
       }
-      const updatedUser = await UserModel.findByIdAndUpdate(req.user.id, {profilePhoto: result?.secure_url},{new: true})
-      
-      res.json(updatedUser).status(200)
-    })
-    res.json(newFilename);
-    console.log("profile photo updated");
+
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(filePath, {
+          resource_type: "image",
+        });
+
+        if (!result.secure_url) {
+          return next(
+            new HttpError("Could not upload image to cloudinary", 422)
+          );
+        }
+
+        // Update user in DB
+        const updatedUser = await UserModel.findByIdAndUpdate(
+          req.user.id,
+          { profilePhoto: result.secure_url },
+          { new: true }
+        );
+
+        // ✅ Only send one response
+        return res.status(200).json({
+          message: "Profile photo updated",
+          user: updatedUser,
+        });
+      } catch (uploadErr) {
+        return next(new HttpError(uploadErr.message, 500));
+      }
+    });
   } catch (error) {
-    return next(new HttpError(error));
+    return next(new HttpError(error.message, 500));
   }
 };
 
@@ -247,4 +341,6 @@ module.exports = {
   editUser,
   followUnfollowUser,
   changeUserAvatar,
+  forgotPassword,
+  resetPassword,
 };

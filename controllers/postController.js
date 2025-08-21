@@ -1,10 +1,11 @@
+const mongoose = require('mongoose');
 const HttpError = require("../models/errorModel");
 const PostModel = require("../models/postModel");
 const UserModel = require("../models/userModel");
-
 const { v4: uuid } = require("uuid");
 const cloudinary = require("../utils/cloudinary");
 const fs = require("fs");
+
 const path = require("path");
 
 // create post
@@ -12,64 +13,61 @@ const path = require("path");
 // Protected
 const createPost = async (req, res, next) => {
   try {
+    if (!req.user?._id) {
+      return next(new HttpError("User not authenticated", 401));
+    }
+
     const { body } = req.body;
-    if (!body) {
-      return next(new HttpError("Fill in text field and choose image", 422));
-    }
-    if (!req.files.image) {
-      return next(new HttpError("Please choose an image", 422));
-    } else {
-      const { image } = req.files;
-      // image should be less than 1mb
-      if (image.size > 1000000) {
-        return next(
-          new HttpError(
-            "Profile picture is too big. It should be less than 500mb",
-            422
-          )
-        );
-      }
-      // rename image
-      let fileName = image.name;
-      fileName = fileName.split(".");
-      fileName = fileName[0] + uuid() + "." + fileName[fileName.length - 1];
-      await image.mv(
-        path.join(__dirname, "..", "uploads", fileName),
-        async (err) => {
-          if (err) {
-            return next(new HttpError(err));
-          }
-          //store image on cloudinary
-          const result = await cloudinary.uploader.upload(
-            path.join(__dirname, "..", "uploads", fileName),
-            { resource_type: "image" }
-          );
+    const image = req.files?.image;
 
-          if (!result.secure_url) {
-            return next(
-              new HttpError(
-                "Could not upload image to cloudinary for the post",
-                422
-              )
-            );
-          }
-          // save post to database
-          const newPost = await PostModel.create({
-            creator: req.user.id,
-            body,
-            image: result.secure_url,
-          });
+    if (!body) return next(new HttpError("Please provide post text", 422));
+    if (!image) return next(new HttpError("Please choose an image", 422));
+    if (image.size > 1_000_000)
+      return next(new HttpError("Image must be less than 1MB", 422));
 
-          await UserModel.findByIdAndUpdate(newPost?.creator, {
-            $push: { posts: newPost?._id, profilePhoto: newPost?.profilePhoto },
-          });
+    // Rename and save locally
+    const ext = image.name.split(".").pop();
+    const fileName = `${uuid()}.${ext}`;
+    const localPath = path.join(__dirname, "..", "uploads", fileName);
 
-          res.json({ message: "New Post created", newPost });
-        }
-      );
-    }
+    await image.mv(localPath);
+
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(localPath, {
+      resource_type: "image",
+      folder: "posts",
+    });
+
+    if (!result?.secure_url)
+      return next(new HttpError("Failed to upload image to Cloudinary", 500));
+
+    // Save post to DB
+    const newPost = await PostModel.create({
+      creator: req.user._id,
+      body,
+      image: result.secure_url,
+    });
+
+    // Update user's posts array
+    await UserModel.findByIdAndUpdate(req.user._id, {
+      $push: { posts: newPost._id },
+    });
+
+    // Remove local file
+    fs.unlink(localPath, (err) => {
+      if (err) console.error("Failed to remove local file:", err);
+    });
+
+    // Populate creator for frontend
+    const populatedPost = await newPost.populate(
+      "creator",
+      "fullName username profilePhoto _id"
+    );
+
+    return res.status(201).json(populatedPost);
   } catch (error) {
-    return next(new HttpError(error.response.data));
+    console.error("Error in createPost:", error.message);
+    return next(new HttpError(error.message || "Server error", 500));
   }
 };
 
@@ -93,8 +91,10 @@ const getPost = async (req, res, next) => {
 // Protected
 const getPosts = async (req, res, next) => {
   try {
-    const posts = await PostModel.find().sort({ createdAt: -1 });
-    res.json({ message: "Get all posts", posts });
+    const posts = await PostModel.find()
+      .populate("creator", "fullName profilePhoto")
+      .sort({ createdAt: -1 });
+    res.status(200).json({ message: "Get all posts", posts });
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -124,9 +124,10 @@ const updatePost = async (req, res, next) => {
       { new: true }
     );
 
-    res
-      .json({ message: "Updated post details successfully", updatedPost })
-      .status(200);
+    res.status(200).json({
+      message: "Updated post details successfully",
+      post: updatedPost,
+    });
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -175,53 +176,77 @@ const getFollowingPosts = async (req, res, next) => {
 };
 
 // Like or dislike post
-// get:api/posts/id/like
+// patch: api/posts/:id/like
 // Protected
 const likeDislikePost = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const user = await UserModel.findById(req.user.id);
-
     const post = await PostModel.findById(id);
 
-    //  check if the logged in user has already liked your post
+    if (!post) {
+      return next(new HttpError("Post not found", 404));
+    }
+
     let updatedPost;
 
-    if (post?.likes.includes(req.user.id)) {
+    if (post.likes.includes(req.user.id)) {
+      // Dislike
       updatedPost = await PostModel.findByIdAndUpdate(
         id,
         { $pull: { likes: req.user.id } },
         { new: true }
       );
-
-      res.json({ message: `${user.fullName} disliked your post`, updatedPost });
     } else {
+      // Like
       updatedPost = await PostModel.findByIdAndUpdate(
         id,
         { $push: { likes: req.user.id } },
         { new: true }
       );
-
-      res.json({ message: `${user.fullName} liked your post`, updatedPost });
     }
+
+    return res.status(200).json(updatedPost); //  return only the updated post
   } catch (error) {
-    return next(new HttpError(error));
+    console.error("Error in likeDislikePost:", error);
+    return next(new HttpError("Server error while liking post", 500));
   }
 };
 
 // Get  post for particular user
 // get:api/users/:id/posts
 // Protected
+
 const getUserPosts = async (req, res, next) => {
   try {
     const userId = req.params.id;
-    const posts = await UserModel.findById(userId).populate({
+
+    // ✅ Check if userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return next(new HttpError("Invalid user ID", 400));
+    }
+
+    const user = await UserModel.findById(userId).populate({
       path: "posts",
       options: { sort: { createdAt: -1 } },
     });
-    res.json({ message: "Get User's post", posts });
+
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    return res.status(200).json({
+      message: "Get User's posts",
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        profilePhoto: user.profilePhoto,
+      },
+      posts: user.posts || [],
+    });
   } catch (error) {
-    return next(new HttpError(error));
+    console.log("Error in getUserPost:", error.message);
+    return next(new HttpError(error.message || "Server error", 500));
   }
 };
 

@@ -1,22 +1,34 @@
-const jwt = require('jsonwebtoken')
-const HttpError = require('../models/errorModel')
+const jwt = require("jsonwebtoken");
+const HttpError = require("../models/errorModel");
 
-const authMiddleware = async (req,res,next) => {
-  const Authorization = req.headers.Authorization || req.headers.authorization;
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization; // always lowercase
 
-  if(Authorization && Authorization.startsWith("Bearer")){
-    const token = Authorization.split(' ')[1]
-    // console.log("token is",token);
-    jwt.verify(token,process.env.JWT_SECRET,(err,info)=>{
-      if(err){
-        return next(new HttpError("Unauthorized..",403))
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return next(new HttpError("No token, authorization denied", 401));
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return next(new HttpError("Token is not valid", 401));
       }
-      req.user=info;
-      next()
-    })
-  }else{
-    return next (new HttpError("Unauthorized...",401))
-  }
-}
 
-module.exports = authMiddleware
+      // decoded should have whatever you put in jwt.sign()
+      // e.g. { id: user._id, email: user.email }
+      req.user = { 
+    _id: decoded.id,
+    id: decoded.id,
+    email: decoded.email,
+  };
+      // req.user = decoded;
+      next();
+    });
+  } catch (error) {
+    return next(new HttpError("Server Error in auth middleware", 500));
+  }
+};
+
+module.exports = authMiddleware;
