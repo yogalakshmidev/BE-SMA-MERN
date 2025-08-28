@@ -52,8 +52,14 @@ const registerUser = async (req, res, next) => {
       password: hashedPassword,
     });
 
-    res.json(newUser).status(201);
-    // res.json("Register User")
+    res.status(201).json({
+  message: "User registered successfully",
+  user: {
+    id: newUser._id,
+    fullName: newUser.fullName,
+    email: newUser.email,
+  },
+});
   } catch (error) {
     return next(new HttpError(error));
   }

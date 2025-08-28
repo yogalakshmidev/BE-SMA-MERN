@@ -23,7 +23,7 @@ app.use(upload());
 app.use('/uploads', express.static('uploads')); 
 app.use("/api", routes);
 app.use(fileUpload({
-  useTempFiles: true, // optional but recommended
+  useTempFiles: true, 
   tempFileDir: "/tmp/"
 }));
 
