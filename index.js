@@ -14,7 +14,7 @@ const fileUpload = require("express-fileupload");
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ extended: true }));
 
-// Need to give the url for the frontend like localhost or netlify
+
 
 app.use(cors({ credentials: true, origin: ["https://funny-belekoy-0c1b61.netlify.app"] }));
 // app.use(cors())

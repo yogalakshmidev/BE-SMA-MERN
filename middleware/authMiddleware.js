@@ -3,7 +3,7 @@ const HttpError = require("../models/errorModel");
 
 const authMiddleware = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization; // always lowercase
+    const authHeader = req.headers.authorization; 
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return next(new HttpError("No token, authorization denied", 401));
@@ -16,8 +16,6 @@ const authMiddleware = async (req, res, next) => {
         return next(new HttpError("Token is not valid", 401));
       }
 
-      // decoded should have whatever you put in jwt.sign()
-      // e.g. { id: user._id, email: user.email }
       req.user = { 
     _id: decoded.id,
     id: decoded.id,

@@ -220,7 +220,7 @@ const getUserPosts = async (req, res, next) => {
   try {
     const userId = req.params.id;
 
-    // ✅ Check if userId is a valid ObjectId
+    
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return next(new HttpError("Invalid user ID", 400));
     }

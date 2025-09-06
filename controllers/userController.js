@@ -325,7 +325,7 @@ const changeUserAvatar = async (req, res, next) => {
           { new: true }
         );
 
-        // ✅ Only send one response
+        
         return res.status(200).json({
           message: "Profile photo updated",
           user: updatedUser,
