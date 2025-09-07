@@ -7,6 +7,7 @@ const {
   getUser,
   getUsers,
   editUser,
+  searchUser,
   followUnfollowUser,
   changeUserAvatar,
   forgotPassword,
@@ -53,6 +54,9 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 
 router.get("/users/bookmarks", authMiddleware, getUserBookmarks);
+
+// Search Routes
+router.get("/users/search",authMiddleware,searchUser)
 
 // Post Routes for get userbookmark post
 

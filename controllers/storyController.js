@@ -7,21 +7,22 @@ const fs = require("fs");
 // Create story
 const createStory = async (req, res, next) => {
   try {
+    console.log("req.body:", req.body);
+    console.log("req.file:", req.file);
+
     const { text } = req.body;
     let mediaUrl = null;
 
     if (req.file) {
-      let resourceType = req.file.mimetype.startsWith("video/")
-        ? "video"
-        : "image";
+      let resourceType = req.file.mimetype.startsWith("video/") ? "video" : "image";
 
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "stories",
         resource_type: resourceType,
       });
-
       mediaUrl = result.secure_url;
 
+      // Delete temp file
       fs.unlinkSync(req.file.path);
     }
 
@@ -33,23 +34,20 @@ const createStory = async (req, res, next) => {
       user: req.user._id,
       text,
       media: mediaUrl,
-      // expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      expiresAt: new Date(Date.now() + 10 * 1000),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
-    const populatedStory = await story.populate(
-      "user",
-      "fullName profilePhoto"
-    );
+    const populatedStory = await story.populate("user", "fullName profilePhoto");
 
-    return res
-      .status(201)
-      .json({ message: "Story created", story: populatedStory });
+    console.log("Story created successfully:", populatedStory);
+
+    return res.status(201).json({ message: "Story created", story: populatedStory });
   } catch (error) {
-    console.error("Error in createStory:", error.message);
+    console.error("Error in createStory:", error);
     return next(new HttpError(error.message, 500));
   }
 };
+
 
 // Get all active stories (not expired)
 // In storyController.js

@@ -226,6 +226,28 @@ const editUser = async (req, res, next) => {
   }
 };
 
+// Search User
+// get:api/users/search?query=yoga
+// protected
+
+const searchUser = async (req,res) => {
+  try {
+    const query = req.query.query;
+    if (!query) {
+      return res.json([]);
+    }
+
+    const users = await UserModel.find({
+      fullName: { $regex: query, $options: "i" }, // case-insensitive
+    }).select("fullName profilePhoto _id");
+
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
+}
+
 // Follow/unfollow User
 // get:api/users/:id/follow-unfollow
 // protected
@@ -319,6 +341,7 @@ module.exports = {
   getUser,
   getUsers,
   editUser,
+  searchUser,
   followUnfollowUser,
   changeUserAvatar,
   forgotPassword,
