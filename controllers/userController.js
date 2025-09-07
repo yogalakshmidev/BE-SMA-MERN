@@ -93,14 +93,13 @@ const loginUser = async (req, res, next) => {
       expiresIn: "1h",
     });
 
-    res
-      .json({
-        token,
-        id: user?._id,
-        profilePhoto: user?.profilePhoto,
-        message: "Login Successfully",
-      })
-      .status(200);
+  res.status(200).json({
+  token,
+  id: user?._id,
+  profilePhoto: user?.profilePhoto,
+  message: "Login Successfully",
+});
+
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -285,63 +284,34 @@ const followUnfollowUser = async (req, res, next) => {
 // Change  User profile photo
 // post: api/users/avatar
 // protected
+
 const changeUserAvatar = async (req, res, next) => {
   try {
-    if (!req.files || !req.files.avatar) {
-      return next(new HttpError("Please choose an image", 422));
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const { avatar } = req.files;
+    // Upload to cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "avatars"
+    });
 
-    // Generate unique filename
-    let fileName = avatar.name;
-    let splittedFilename = fileName.split(".");
-    let newFilename =
-      splittedFilename[0] +
-      uuid() +
-      "." +
-      splittedFilename[splittedFilename.length - 1];
+    // remove temp file
+    fs.unlinkSync(req.file.path);
 
-    const filePath = path.join(__dirname, "..", "uploads", newFilename);
+    // update user
+    req.user.profilePhoto = result.secure_url;
+    await req.user.save();
 
-    // Move file to uploads folder
-    avatar.mv(filePath, async (err) => {
-      if (err) {
-        return next(new HttpError("File upload failed", 500));
-      }
-
-      try {
-        // Upload to Cloudinary
-        const result = await cloudinary.uploader.upload(filePath, {
-          resource_type: "image",
-        });
-
-        if (!result.secure_url) {
-          return next(
-            new HttpError("Could not upload image to cloudinary", 422)
-          );
-        }
-
-        // Update user in DB
-        const updatedUser = await UserModel.findByIdAndUpdate(
-          req.user.id,
-          { profilePhoto: result.secure_url },
-          { new: true }
-        );
-
-        
-        return res.status(200).json({
-          message: "Profile photo updated",
-          user: updatedUser,
-        });
-      } catch (uploadErr) {
-        return next(new HttpError(uploadErr.message, 500));
-      }
+    res.status(200).json({
+      message: "Profile photo updated successfully",
+      user: req.user
     });
   } catch (error) {
-    return next(new HttpError(error.message, 500));
+    next(error);
   }
 };
+
 
 module.exports = {
   registerUser,

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const HttpError = require("../models/errorModel");
 const PostModel = require("../models/postModel");
 const UserModel = require("../models/userModel");
@@ -11,54 +11,30 @@ const path = require("path");
 // create post
 // Post:api/posts
 // Protected
+
 const createPost = async (req, res, next) => {
   try {
-    if (!req.user?._id) {
-      return next(new HttpError("User not authenticated", 401));
+    const body = req.body.body || req.body.text; // support both
+    let imageUrl = null;
+
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "posts",
+      });
+      imageUrl = result.secure_url;
+      fs.unlinkSync(req.file.path);
     }
 
-    const { body } = req.body;
-    const image = req.files?.image;
+    if (!body && !imageUrl) {
+      return next(new HttpError("Please provide post text or an image", 422));
+    }
 
-    if (!body) return next(new HttpError("Please provide post text", 422));
-    if (!image) return next(new HttpError("Please choose an image", 422));
-    if (image.size > 1_000_000)
-      return next(new HttpError("Image must be less than 1MB", 422));
-
-    // Rename and save locally
-    const ext = image.name.split(".").pop();
-    const fileName = `${uuid()}.${ext}`;
-    const localPath = path.join(__dirname, "..", "uploads", fileName);
-
-    await image.mv(localPath);
-
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(localPath, {
-      resource_type: "image",
-      folder: "posts",
-    });
-
-    if (!result?.secure_url)
-      return next(new HttpError("Failed to upload image to Cloudinary", 500));
-
-    // Save post to DB
     const newPost = await PostModel.create({
       creator: req.user._id,
       body,
-      image: result.secure_url,
+      image: imageUrl,
     });
 
-    // Update user's posts array
-    await UserModel.findByIdAndUpdate(req.user._id, {
-      $push: { posts: newPost._id },
-    });
-
-    // Remove local file
-    fs.unlink(localPath, (err) => {
-      if (err) console.error("Failed to remove local file:", err);
-    });
-
-    // Populate creator for frontend
     const populatedPost = await newPost.populate(
       "creator",
       "fullName username profilePhoto _id"
@@ -130,6 +106,31 @@ const updatePost = async (req, res, next) => {
     });
   } catch (error) {
     return next(new HttpError(error));
+  }
+};
+
+const changeUserAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new HttpError("No avatar file uploaded", 422));
+    }
+
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "avatars",
+    });
+
+    fs.unlinkSync(req.file.path);
+
+    const user = await UserModel.findByIdAndUpdate(
+      req.user._id,
+      { profilePhoto: result.secure_url },
+      { new: true }
+    ).select("fullName profilePhoto");
+
+    res.status(200).json({ message: "Avatar updated", user });
+  } catch (error) {
+    console.error("Error in changeUserAvatar:", error.message);
+    return next(new HttpError(error.message, 500));
   }
 };
 
@@ -220,7 +221,6 @@ const getUserPosts = async (req, res, next) => {
   try {
     const userId = req.params.id;
 
-    
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return next(new HttpError("Invalid user ID", 400));
     }

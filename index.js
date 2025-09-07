@@ -2,33 +2,39 @@ const express = require("express");
 const { connect } = require("mongoose");
 require("dotenv").config();
 const cors = require("cors");
-const upload = require("express-fileupload");
+// const upload = require("express-fileupload");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const routes = require("./routes/routes");
 const { server, app } = require("./socket/socket");
-const fileUpload = require("express-fileupload");
+// const fileUpload = require("express-fileupload");
 
+const Story = require("./models/storyModel");
+const cron = require("node-cron");
+const { cleanExpiredStories } = require("./controllers/storyController");
 
 // const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ extended: true }));
 
-
-
 app.use(cors({ credentials: true, origin: ["https://funny-belekoy-0c1b61.netlify.app"] }));
 // app.use(cors())
 // app.use(cors({ credentials: true, origin: ["http://localhost:5173"] }));
-app.use(upload());
-app.use('/uploads', express.static('uploads')); 
+// app.use(upload());
+app.use("/uploads", express.static("uploads"));
 app.use("/api", routes);
-app.use(fileUpload({
-  useTempFiles: true, 
-  tempFileDir: "/tmp/"
-}));
+// app.use(fileUpload({
+//   useTempFiles: true,
+//   tempFileDir: "/tmp/"
+// }));
 
-app.use(notFound); 
+app.use(notFound);
 app.use(errorHandler);
+// Run every hour
+cron.schedule("0 * * * *", () => {
+  console.log("Running expired stories cleanup...");
+  cleanExpiredStories();
+});
 
 // Database connection
 connect(process.env.MONGO_URL)

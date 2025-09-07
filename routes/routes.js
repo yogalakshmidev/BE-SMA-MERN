@@ -1,5 +1,6 @@
 const router = require("express").Router();
 
+
 const {
   registerUser,
   loginUser,
@@ -36,8 +37,13 @@ const {
   getMessages,
   getConversations,
 } = require("../controllers/messageController");
+
+const { createStory, getStories } = require("../controllers/storyController");
+
+
 const authMiddleware = require("../middleware/authMiddleware");
 
+const upload = require("../utils/upload");
 // user routes
 
 router.post("/users/register", registerUser);
@@ -54,12 +60,12 @@ router.get("/users/:id", authMiddleware, getUser);
 router.get("/users", authMiddleware, getUsers);
 router.patch("/users/:id", authMiddleware, editUser);
 router.get("/users/:id/follow-unfollow", authMiddleware, followUnfollowUser);
-router.post("/users/avatar", authMiddleware, changeUserAvatar);
+router.post("/users/avatar", authMiddleware,upload.single("avatar"),changeUserAvatar);
 // Post Routes for get userposts
 router.get("/users/:id/posts", authMiddleware, getUserPosts);
 
 // Post Routes
-router.post("/posts", authMiddleware, createPost);
+router.post("/posts", authMiddleware,upload.single("image"), createPost);
 router.get("/posts/following", authMiddleware, getFollowingPosts);
 router.get("/posts/:id", authMiddleware, getPost);
 router.get("/posts", authMiddleware, getPosts);
@@ -77,5 +83,10 @@ router.delete("/comments/:commentId", authMiddleware, deleteComment);
 router.post("/messages/:receiverId", authMiddleware, createMessage);
 router.get("/messages/:receiverId", authMiddleware, getMessages);
 router.get("/conversations", authMiddleware, getConversations);
+
+
+// Story Routes
+router.post('/stories', authMiddleware,upload.single("media"), createStory);           
+router.get('/stories/feed', authMiddleware, getStories);
 
 module.exports = router;
