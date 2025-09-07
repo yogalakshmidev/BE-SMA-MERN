@@ -193,10 +193,19 @@ const getUser = async (req, res, next) => {
 // protected
 const getUsers = async (req, res, next) => {
   try {
-    const user = await UserModel.find().limit(10).sort({ createdAt: -1 });
-    res.json({ message: "Get All Users", user }).status(200);
+    const currentUserId = req.user.id;
+
+    // Fetch the current user to get their following list
+    const currentUser = await UserModel.findById(currentUserId);
+
+    // Find all users excluding the current user and already followed users
+    const users = await UserModel.find({
+      _id: { $nin: [currentUserId, ...(currentUser.following || [])] },
+    }).select("-password"); // exclude password
+
+    res.status(200).json({ message: "Suggested users", users });
   } catch (error) {
-    return next(new HttpError(error));
+    return next(new HttpError(error.message, 500));
   }
 };
 
@@ -221,62 +230,57 @@ const editUser = async (req, res, next) => {
 // Follow/unfollow User
 // get:api/users/:id/follow-unfollow
 // protected
+
 const followUnfollowUser = async (req, res, next) => {
   try {
-    const userToFollowId = req.params.id;
-    if (req.user.id == userToFollowId) {
-      return next(new HttpError("You can't follow / unfollow yourself", 422));
+    const userToFollowId = req.params.id.toString();
+    const currentUserId = req.user.id.toString();
+
+    if (currentUserId === userToFollowId) {
+      return next(new HttpError("You can't follow/unfollow yourself", 422));
     }
-    const currentUser = await UserModel.findById(req.user.id);
+
+    const currentUser = await UserModel.findById(currentUserId);
     const isFollowing = currentUser?.following?.includes(userToFollowId);
 
-    // follow if not following else viceversa
+    let updatedUser;
+
     if (!isFollowing) {
-      const updatedUser = await UserModel.findByIdAndUpdate(
+      updatedUser = await UserModel.findByIdAndUpdate(
         userToFollowId,
-        { $push: { followers: req.user.id } },
+        { $push: { followers: currentUserId } },
         { new: true }
       );
-
       await UserModel.findByIdAndUpdate(
-        req.user.id,
+        currentUserId,
         { $push: { following: userToFollowId } },
         { new: true }
       );
-      console.log(
-        "follow and current user ids are",
-
-        currentUser.fullName,
-        userToFollowId
-      );
-      res.json({
-        message: `${currentUser.fullName} Follow successfully`,
-        updatedUser,
-      });
     } else {
-      const updatedUser = await UserModel.findByIdAndUpdate(
+      updatedUser = await UserModel.findByIdAndUpdate(
         userToFollowId,
-        { $pull: { followers: req.user.id } },
+        { $pull: { followers: currentUserId } },
         { new: true }
       );
-
       await UserModel.findByIdAndUpdate(
-        req.user.id,
+        currentUserId,
         { $pull: { following: userToFollowId } },
         { new: true }
       );
-
-      res.json({
-        message: `${currentUser.fullName} UnFollow successfully`,
-        updatedUser,
-      });
     }
 
-    // res.json("Follow/unfollow User")
+    const refreshedCurrentUser = await UserModel.findById(currentUserId);
+
+    res.json({
+      message: isFollowing ? "Unfollowed" : "Followed",
+      updatedUser,
+      currentUserFollowing: refreshedCurrentUser.following,
+    });
   } catch (error) {
-    return next(new HttpError(error));
+    return next(new HttpError(error.message, 500));
   }
 };
+
 
 // Change  User profile photo
 // post: api/users/avatar
