@@ -225,27 +225,20 @@ const getUserPosts = async (req, res, next) => {
       return next(new HttpError("Invalid user ID", 400));
     }
 
-    const user = await UserModel.findById(userId).populate({
-      path: "posts",
-      options: { sort: { createdAt: -1 } },
-    });
+    const posts = await PostModel.find({ creator: userId })
+      .sort({ createdAt: -1 })
+      .populate("creator", "fullName username profilePhoto _id");
 
-    if (!user) {
-      return next(new HttpError("User not found", 404));
+    if (!posts) {
+      return next(new HttpError("No posts found for this user", 404));
     }
 
     return res.status(200).json({
       message: "Get User's posts",
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        profilePhoto: user.profilePhoto,
-      },
-      posts: user.posts || [],
+      posts,
     });
   } catch (error) {
-    console.log("Error in getUserPost:", error.message);
+    console.log("Error in getUserPosts:", error.message);
     return next(new HttpError(error.message || "Server error", 500));
   }
 };
